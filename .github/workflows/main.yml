@@ -26,8 +26,8 @@ jobs:
 
       - name: Upload all downloaded files (recursive)
         run: |
-          find ./downloaded_files -type f \( -iname "*.avi" -o -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.srt" -iname "*.rar" -iname "*.zip" \) -print0 | while IFS= read -r -d '' file; do
-          curl -g -X POST "https://upload.gofile.io/uploadfile" \
+          find ./downloaded_files -type f \( -iname "*.avi" -o -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.srt" -o -iname "*.rar" -o -iname "*.zip" \) -print0 | while IFS= read -r -d '' file; do
+          curl -g -X POST "https://upload.gofile.io/uploadFile" \
           -H "Authorization: Bearer 1lQraGqc7ZGecDsDKGOzM7uygb8kiRyx" \
           -F "file=@\"$file\"" \
           -F "folderId=3f84bca1-fbeb-4b2f-a408-ac5029ba36d7"
