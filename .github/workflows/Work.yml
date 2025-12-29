@@ -1,0 +1,33 @@
+name: Torrent Download & Upload to Pixeldrain
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  torrent-upload:
+    runs-on: ubuntu-latest
+    env:
+      PIXELDRAIN_API_KEY: '8ec6f000-e8d1-403d-820b-4324a6a68869'  # Replace with your actual API key
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt install aria2 -y
+          
+      - name: Download torrent content with webtorrent-cli
+        run: |
+          aria2c --seed-time=0 --dir=downloaded_files --select-file=208-326 "magnet:?xt=urn:btih:F8B0FC1A718A46AD6B04FC4516402D06882337A2&dn=The%20Tom%20and%20Jerry%20Show%20%282014%29%20Season%201-5%20COMPLETE%20SERIES.1080p.H2...%20%5B%20UIndex.org%20%5D&tr=udp://tracker.bittor.pw:1337/announce&tr=udp://tracker.opentrackr.org:1337/announce&tr=udp://tracker.dler.org:6969/announce&tr=udp://open.stealth.si:80/announce&tr=udp://tracker.torrent.eu.org:451/announce&tr=udp://exodus.desync.com:6969/announce&tr=udp://open.demonii.com:1337/announce"
+
+      - name: Upload all downloaded files (recursive)
+        run: |
+          find ./downloaded_files -type f \( -iname "*.avi" -o -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.srt" \) -print0 | while IFS= read -r -d '' file; do
+          curl -g -X POST "https://upload.gofile.io/uploadfile" \
+          -H "Authorization: Bearer VoTnBsgTAiTqm97X6FmvdmBswsMPl6SG" \
+          -F "file=@\"$file\"" \
+          -F "folderId=1173e977-bf91-41d7-8dd6-a11cbd1a1756"
+          done
