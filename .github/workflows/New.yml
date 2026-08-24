@@ -3,7 +3,7 @@ name: Torrent Download & Upload to Filemirage
 on:
   push:
     branches:
-      - Mirage
+      - Try
   workflow_dispatch:
 
 jobs:
