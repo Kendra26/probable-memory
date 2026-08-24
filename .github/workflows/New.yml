@@ -1,0 +1,109 @@
+name: Torrent Download & Upload to Filemirage
+
+on:
+  push:
+    branches:
+      - Mirage
+  workflow_dispatch:
+
+jobs:
+  torrent-upload:
+    runs-on: ubuntu-latest
+    env:
+      PIXELDRAIN_API_KEY: '9'
+      FILEMIRAGE_API_TOKEN: '9QQH-DGES-CWQZ-FXNV'
+      FOLDER_PATH: 'downloaded_files'
+      ZIP_NAME: 'downloaded_files.zip'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt install qbittorrent-nox jq curl zip -y
+          curl -o page.txt "https://equestria-eta.vercel.app/api/pages/dprjjMvC8fCF/raw"
+
+      - name: Configure qBittorrent (Bypass Auth for Localhost)
+        run: |
+          mkdir -p ~/.config/qBittorrent "$FOLDER_PATH"
+          cat << 'EOF' > ~/.config/qBittorrent/qBittorrent.conf
+[BitTorrent]
+Session\DefaultSavePath=downloaded_files
+
+[Preferences]
+WebUI\LocalHostAuth=false
+WebUI\Port=8080
+EOF
+
+      - name: Download torrent content with qBittorrent
+        run: |
+          # Start qbittorrent headless daemon
+          qbittorrent-nox --daemon
+          sleep 5
+          
+          # Add links via Web API
+          while IFS= read -r link || [ -n "$link" ]; do
+            link=$(echo "$link" | tr -d '\r')
+            if [ -n "$link" ] && [[ ! "$link" =~ ^# ]]; then
+              echo "Adding to qBittorrent: $link"
+              curl -s -X POST "http://localhost:8080/api/v2/torrents/add" \
+                -F "urls=$link" \
+                -F "savepath=$PWD/$FOLDER_PATH"
+            fi
+          done < page.txt
+
+          echo "Waiting for all torrents to finish downloading..."
+          
+          # Monitoring loop via Web API JSON
+          while true; do
+            sleep 10
+            
+            TORRENTS_JSON=$(curl -s "http://localhost:8080/api/v2/torrents/info")
+            TOTAL=$(echo "$TORRENTS_JSON" | jq 'length')
+            
+            if [ "$TOTAL" -eq 0 ]; then
+              echo "No active torrents found."
+              break
+            fi
+
+            # Check how many torrents have reached 100% progress (progress == 1)
+            COMPLETED=$(echo "$TORRENTS_JSON" | jq '[.[] | select(.progress == 1)] | length')
+            
+            echo "--> Progress: $COMPLETED of $TOTAL torrents finished."
+            
+            if [ "$COMPLETED" -eq "$TOTAL" ]; then
+              echo "All downloads reached 100%!"
+              break
+            fi
+          done
+
+          echo "Stopping qBittorrent..."
+          pkill qbittorrent-nox
+          sleep 2
+
+      - name: Zip downloaded files
+        run: |
+          echo "Compressing $FOLDER_PATH into $ZIP_NAME..."
+          zip -r "$ZIP_NAME" "$FOLDER_PATH"
+
+      - name: Upload zip file to Filemirage
+        run: |
+          SERVER=$(curl -s https://filemirage.com/api/servers | jq -r '.data.server')
+          UPLOAD_ID=$(curl -s https://filemirage.com/api/servers | jq -r '.data.upload_id')
+          
+          echo "Using server: $SERVER"
+          echo "Upload ID: $UPLOAD_ID"
+          echo "Uploading: $ZIP_NAME"
+          
+          RESPONSE=$(curl -s -H "Authorization: Bearer $FILEMIRAGE_API_TOKEN" \
+            -F "file=@$ZIP_NAME;filename=$ZIP_NAME" \
+            "$SERVER/upload.php")
+          
+          success=$(echo "$RESPONSE" | jq -r '.success')
+          if [ "$success" != "true" ]; then
+              echo "Failed to upload $ZIP_NAME: $(echo "$RESPONSE" | jq -r '.message')"
+              exit 1
+          else
+              echo "Successfully uploaded: $ZIP_NAME"
+          fi
